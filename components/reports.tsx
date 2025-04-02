@@ -9,27 +9,11 @@ import ECChart from "@/components/charts/ec-chart"
 import WaterLevelChart from "@/components/charts/water-level-chart"
 import BrightnessChart from "@/components/charts/brightness-chart"
 
-export default function ReportsPage() {
+export default function Reports() {
   return (
     <div className="flex min-h-screen w-full flex-col">
-      <header className="sticky top-0 z-10 flex h-16 items-center gap-4 border-b bg-background px-4 md:px-6">
-        <Link href="/" className="flex items-center gap-2 font-semibold">
-          <Droplets className="h-6 w-6 text-primary" />
-          <span>HydroFlow Dashboard</span>
-        </Link>
-        <div className="ml-auto flex items-center gap-4">
-          <Link
-            href="/"
-            className="flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Dashboard
-          </Link>
-        </div>
-      </header>
-      <main className="flex-1 space-y-4 p-4 md:p-6">
+      <main className="flex-1 space-y-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
           <div className="flex items-center gap-2">
             <Select defaultValue="day">
               <SelectTrigger className="w-[180px]">

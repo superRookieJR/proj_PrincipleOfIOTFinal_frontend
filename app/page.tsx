@@ -4,32 +4,92 @@ import Link from "next/link"
 import { Droplets, Thermometer, Activity, FlaskRoundIcon as Flask, BarChart3 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Switch } from "@/components/ui/switch"
+import { io, Socket } from "socket.io-client";
 import SensorReadings from "@/components/sensor-readings"
 import ControlPanel from "@/components/control-panel"
 import CameraFeed from "@/components/camera-feed"
+import Reports from "@/components/reports"
 
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
+interface SenSorsData {
+  ldr: number,
+  mix: number,
+  nutrition_a: number,
+  nutrition_b: number,
+  temp: number
+}
+
+interface IsError {
+  message: string,
+  isError: boolean
+}
+
 export default function Dashboard() {
-  const [sensorValue, setSensorValue] = useState('');
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [sensorValue, setSensorValue] = useState<SenSorsData | null>(null);
+  const [latestUpdate, setLatestUpdate] = useState<string | null>(null);
+  const [nutrition_a, setNutrition_A] = useState<0 | 1>(0)
+  const [nutrition_b, setNutrition_B] = useState<0 | 1>(0)
+  const [water, setWater] = useState<0 | 1>(0)
+  const [out, setOut] = useState<0 | 1>(0)
+  const [isError, setIsError] = useState<IsError | null>(null);
+
+  function actuator_update(id: number, mode: number){
+    console.log("Emitting data:", { id: id, mode: mode });
+    socket?.emit("actuator_update", { id: id, mode: mode });
+  }
 
   useEffect(() => {
       const docRef = doc(db, "hydroponic", "hydroponic-001");
+      const streamLink = "https://proj-principleofiotfinal-bridge.onrender.com";
+      const socket = io(streamLink, {transports: ["websocket", "polling"]});
 
-      // Listen for real-time updates
+      setSocket(socket);
+
       const unsubscribe = onSnapshot(docRef, (docSnap) => {
-          if (docSnap.exists()) {
-              const data = docSnap.data();
-              setSensorValue(data.sensors?.test || "No value found");
-          } else {
-              setSensorValue("No document found!");
-          }
+        if (docSnap.exists()) {
+            const actuatorsData = docSnap.data().actuators
+            const sensorsData = docSnap.data().sensors;
+            const latestUpdate = docSnap.data().updatedAt;
+
+            let d: SenSorsData = {
+              ldr: sensorsData.ldr,
+              mix: sensorsData.mix,
+              nutrition_a: sensorsData.nutrition_a,
+              nutrition_b: sensorsData.nutrition_b,
+              temp: sensorsData.temp
+            }
+
+            setSensorValue(d);
+            setNutrition_A(actuatorsData.nutrition_a ? 1 : 0)
+            setNutrition_B(actuatorsData.nutrition_b ? 1 : 0)
+            setWater(actuatorsData.water ? 1 : 0)
+            setOut(actuatorsData.out ? 1 : 0)
+            setLatestUpdate(latestUpdate.toDate().toLocaleString());
+        } else {
+            setIsError({
+              isError: true,
+              message: "No document found!"
+            });      
+        }
       });
 
       // Cleanup function to unsubscribe from Firestore listener when component unmounts
       return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    
+    socket?.on("connect", () => console.log("✅ Connected to Socket.IO"));
+    socket?.on("connect_error", (err) => console.error("❌ Socket.IO connection error:", err));
+    
+    return () => {
+      socket?.disconnect();
+    };
   }, []);
 
   return (
@@ -50,24 +110,37 @@ export default function Dashboard() {
         </nav> */}
       </header>
       <main className="flex-1 space-y-4 p-4 md:p-6">
+        <div className="w-full text-right">
+          <p>Latest Update: {latestUpdate}</p>
+        </div>
         <div className="grid gap-4 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Nutrition A</CardTitle>
-              <Droplets className="h-4 w-4 text-blue-400 text-muted-foreground" />
+              <Droplets className="h-4 w-4 text-green-400 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{sensorValue}</div>
-              <p className="text-xs text-muted-foreground">Normal range</p>
+              <div className="text-2xl font-bold">{sensorValue?.nutrition_a} L</div>
+              <p className="text-xs  text-muted-foreground">Normal range</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Nutrition B</CardTitle>
-              <Droplets className="h-4 w-4 text-blue-400 text-muted-foreground" />
+              <Droplets className="h-4 w-4 text-red-400 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{sensorValue}</div>
+              <div className="text-2xl font-bold">{sensorValue?.nutrition_b} L</div>
+              <p className="text-xs text-muted-foreground">Normal range</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Mix Tank</CardTitle>
+              <Droplets className="h-4 w-4 text-cyan-400 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{sensorValue?.mix} L</div>
               <p className="text-xs text-muted-foreground">Normal range</p>
             </CardContent>
           </Card>
@@ -77,28 +150,18 @@ export default function Dashboard() {
               <Thermometer className="h-4 w-4 text-orange-400 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">24.5°C</div>
+              <div className="text-2xl font-bold">{sensorValue?.temp}°C</div>
               <p className="text-xs text-muted-foreground">Optimal</p>
             </CardContent>
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">pH Level</CardTitle>
-              <Flask className="h-4 w-4 text-gray-400 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Light Level</CardTitle>
+              <Flask className="h-4 w-4 text-yellow-400 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">6.2</div>
+              <div className="text-2xl font-bold">{sensorValue?.ldr}</div>
               <p className="text-xs text-muted-foreground">Slightly acidic</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">EC</CardTitle>
-              <Activity className="h-4 w-4 text-amber-400 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">1.8 mS/cm</div>
-              <p className="text-xs text-muted-foreground">Good nutrient level</p>
             </CardContent>
           </Card>
         </div>
@@ -106,8 +169,8 @@ export default function Dashboard() {
         <Tabs defaultValue="overview" className="space-y-4">
           <TabsList>
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="sensors">Sensors</TabsTrigger>
-            <TabsTrigger value="controls">Controls</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
+            {/* <TabsTrigger value="controls">Controls</TabsTrigger> */}
           </TabsList>
           <TabsContent value="overview" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -119,24 +182,32 @@ export default function Dashboard() {
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Water Pump</span>
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                      <div className="flex items-center">
+                        <span className={`flex h-2.5 w-2.5 mr-2 rounded-full ${nutrition_a == 0  ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                        <span className="text-sm">Nutrition A Pump</span>
+                      </div>
+                      <Switch id="water-pump" checked={nutrition_a == 0 ? false : true} onCheckedChange={(checked) => { setNutrition_A(checked ? 1 : 0), actuator_update(1, checked ? 1 : 0)}} />
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Air Pump</span>
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                      <div className="flex items-center">
+                        <span className={`flex h-2.5 w-2.5 mr-2 rounded-full ${nutrition_b == 0  ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                        <span className="text-sm">Nutrition B Pump</span>
+                      </div>
+                      <Switch id="water-pump" checked={nutrition_b == 0 ? false : true} onCheckedChange={(checked) => {setNutrition_B(checked ? 1 : 0), actuator_update(2, checked ? 1 : 0)}} />
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Valve 1</span>
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                      <div className="flex items-center">
+                        <span className={`flex h-2.5 w-2.5 mr-2 rounded-full ${water == 0  ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                        <span className="text-sm">Water Pump</span>
+                      </div>
+                      <Switch id="water-pump" checked={water == 0 ? false : true} onCheckedChange={(checked) => {setWater(checked ? 1 : 0), actuator_update(3, checked ? 1 : 0)}} />
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Valve 2</span>
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-red-500"></span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm">Lighting</span>
-                      <span className="flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                      <div className="flex items-center">
+                        <span className={`flex h-2.5 w-2.5 mr-2 rounded-full ${out == 0  ? 'bg-red-500' : 'bg-green-500'}`}></span>
+                        <span className="text-sm">Water Out Pump</span>
+                      </div>
+                      <Switch id="water-pump" checked={out == 0 ? false : true} onCheckedChange={(checked) => {setOut(checked ? 1 : 0), actuator_update(4, checked ? 1 : 0)}} />
                     </div>
                   </div>
                 </CardContent>
@@ -149,23 +220,22 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="aspect-video overflow-hidden rounded-md bg-muted">
-                    <CameraFeed />
+                    <CameraFeed link={"https://proj-principleofiotfinal-bridge.onrender.com"} />
                   </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
-          <TabsContent value="sensors" className="space-y-4">
-            <SensorReadings />
+          <TabsContent value="reports" className="space-y-4">
+            <Reports/>
           </TabsContent>
 
-          <TabsContent value="controls" className="space-y-4">
+          {/* <TabsContent value="controls" className="space-y-4">
             <ControlPanel />
-          </TabsContent>
+          </TabsContent> */}
         </Tabs>
       </main>
     </div>
   )
 }
-
