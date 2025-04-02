@@ -11,7 +11,7 @@ import ControlPanel from "@/components/control-panel"
 import CameraFeed from "@/components/camera-feed"
 import Reports from "@/components/reports"
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { db } from "@/lib/firebase";
 import { doc, onSnapshot } from "firebase/firestore";
 
@@ -29,66 +29,54 @@ interface IsError {
 }
 
 export default function Dashboard() {
-  const [socket, setSocket] = useState<Socket | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const [sensorValue, setSensorValue] = useState<SenSorsData | null>(null);
   const [latestUpdate, setLatestUpdate] = useState<string | null>(null);
-  const [nutrition_a, setNutrition_A] = useState<0 | 1>(0)
-  const [nutrition_b, setNutrition_B] = useState<0 | 1>(0)
-  const [water, setWater] = useState<0 | 1>(0)
-  const [out, setOut] = useState<0 | 1>(0)
+  const [nutrition_a, setNutrition_A] = useState<0 | 1>(0);
+  const [nutrition_b, setNutrition_B] = useState<0 | 1>(0);
+  const [water, setWater] = useState<0 | 1>(0);
+  const [out, setOut] = useState<0 | 1>(0);
   const [isError, setIsError] = useState<IsError | null>(null);
 
-  function actuator_update(id: number, mode: number){
-    console.log("Emitting data:", { id: id, mode: mode });
-    socket?.emit("actuator_update", { id: id, mode: mode });
-  }
+  const actuator_update = (id: number, mode: number) => {
+    console.log("Emitting data:", { id, mode });
+    socketRef.current?.emit("actuator_update", { id, mode });
+  };
 
   useEffect(() => {
-      const docRef = doc(db, "hydroponic", "hydroponic-001");
-      const streamLink = "https://proj-principleofiotfinal-bridge.onrender.com";
-      const socket = io(streamLink, {transports: ["websocket", "polling"]});
+    const docRef = doc(db, "hydroponic", "hydroponic-001");
+    const socket = io("https://proj-principleofiotfinal-bridge.onrender.com", { transports: ["websocket", "polling"] });
+    socketRef.current = socket;
 
-      setSocket(socket);
+    socket.on("connect", () => console.log("✅ Connected to Socket.IO"));
+    socket.on("connect_error", (err) => console.error("❌ Socket.IO connection error:", err));
 
-      const unsubscribe = onSnapshot(docRef, (docSnap) => {
-        if (docSnap.exists()) {
-            const actuatorsData = docSnap.data().actuators
-            const sensorsData = docSnap.data().sensors;
-            const latestUpdate = docSnap.data().updatedAt;
+    const unsubscribe = onSnapshot(docRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const { actuators, sensors, updatedAt } = docSnap.data();
 
-            let d: SenSorsData = {
-              ldr: sensorsData.ldr,
-              mix: sensorsData.mix,
-              nutrition_a: sensorsData.nutrition_a,
-              nutrition_b: sensorsData.nutrition_b,
-              temp: sensorsData.temp
-            }
+        setSensorValue({
+          ldr: sensors.ldr,
+          mix: sensors.mix,
+          nutrition_a: sensors.nutrition_a,
+          nutrition_b: sensors.nutrition_b,
+          temp: sensors.temp
+        });
 
-            setSensorValue(d);
-            setNutrition_A(actuatorsData.nutrition_a ? 1 : 0)
-            setNutrition_B(actuatorsData.nutrition_b ? 1 : 0)
-            setWater(actuatorsData.water ? 1 : 0)
-            setOut(actuatorsData.out ? 1 : 0)
-            setLatestUpdate(latestUpdate.toDate().toLocaleString());
-        } else {
-            setIsError({
-              isError: true,
-              message: "No document found!"
-            });      
-        }
-      });
+        setNutrition_A(actuators.nutrition_a ? 1 : 0);
+        setNutrition_B(actuators.nutrition_b ? 1 : 0);
+        setWater(actuators.water ? 1 : 0);
+        setOut(actuators.out ? 1 : 0);
 
-      // Cleanup function to unsubscribe from Firestore listener when component unmounts
-      return () => unsubscribe();
-  }, []);
+        setLatestUpdate(updatedAt.toDate().toLocaleString());
+      } else {
+        setIsError({ isError: true, message: "No document found!" });
+      }
+    });
 
-  useEffect(() => {
-    
-    socket?.on("connect", () => console.log("✅ Connected to Socket.IO"));
-    socket?.on("connect_error", (err) => console.error("❌ Socket.IO connection error:", err));
-    
     return () => {
-      socket?.disconnect();
+      socket.disconnect();
+      unsubscribe();
     };
   }, []);
 
