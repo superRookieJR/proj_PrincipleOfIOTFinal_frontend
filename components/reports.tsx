@@ -1,12 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Droplets, ArrowLeft } from "lucide-react"
-import Link from "next/link"
 import TemperatureChart from "@/components/charts/temperature-chart"
-import PHChart from "@/components/charts/ph-chart"
-import ECChart from "@/components/charts/ec-chart"
-import WaterLevelChart from "@/components/charts/water-level-chart"
 import BrightnessChart from "@/components/charts/brightness-chart"
 
 export default function Reports() {
@@ -29,11 +24,8 @@ export default function Reports() {
         </div>
 
         <Tabs defaultValue="temperature" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-fit grid-cols-2">
             <TabsTrigger value="temperature">Temperature</TabsTrigger>
-            <TabsTrigger value="ph">pH</TabsTrigger>
-            <TabsTrigger value="ec">EC</TabsTrigger>
-            <TabsTrigger value="water">Water Level</TabsTrigger>
             <TabsTrigger value="brightness">Brightness</TabsTrigger>
           </TabsList>
 
@@ -46,48 +38,6 @@ export default function Reports() {
               <CardContent className="pl-2">
                 <div className="h-[400px]">
                   <TemperatureChart />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="ph">
-            <Card>
-              <CardHeader>
-                <CardTitle>pH Level History</CardTitle>
-                <CardDescription>pH readings over time</CardDescription>
-              </CardHeader>
-              <CardContent className="pl-2">
-                <div className="h-[400px]">
-                  <PHChart />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="ec">
-            <Card>
-              <CardHeader>
-                <CardTitle>EC History</CardTitle>
-                <CardDescription>Electrical conductivity readings over time (mS/cm)</CardDescription>
-              </CardHeader>
-              <CardContent className="pl-2">
-                <div className="h-[400px]">
-                  <ECChart />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="water">
-            <Card>
-              <CardHeader>
-                <CardTitle>Water Level History</CardTitle>
-                <CardDescription>Water level readings over time (%)</CardDescription>
-              </CardHeader>
-              <CardContent className="pl-2">
-                <div className="h-[400px]">
-                  <WaterLevelChart />
                 </div>
               </CardContent>
             </Card>
